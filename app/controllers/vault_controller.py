@@ -1,51 +1,97 @@
-from flask import request, jsonify
-from app.extensions.firestore import db_client
-from google.cloud.firestore_v1.base_query import FieldFilter
+from flask import request, jsonify, current_app
+import requests
+import json
+from datetime import datetime
+from app.extensions.firebase import get_firestore_base_url
 
 def add_password():
     uid = request.uid
+    token = request.token
     data = request.json
     
-    # Validation: Ensure ONLY encrypted blobs are being sent
     required_fields = ['site', 'username', 'encryptedPassword', 'iv']
     if not all(k in data for k in required_fields):
         return jsonify({'error': 'Missing required fields'}), 400
 
-    # Store in Firestore under users/{uid}/vault
-    # Backend DOES NOT ENCRYPT OR DECRYPT. It just stores.
-    doc_ref = db_client().collection('users').document(uid).collection('vault').document()
-    doc_ref.set({
-        'site': data['site'],
-        'username': data['username'],
-        'encryptedPassword': data['encryptedPassword'],
-        'iv': data['iv'],
-        'createdAt': firestore_timestamp(),
-        'updatedAt': firestore_timestamp()
-    })
+    # Firestore REST API Endpoint for creating a document
+    # collection: users/{uid}/vault
+    url = f"{get_firestore_base_url()}/users/{uid}/vault"
     
-    return jsonify({'id': doc_ref.id, 'message': 'Password stored successfully'}), 201
+    print(f"DEBUG: Processing request for UID: {uid}")
+    print(f"DEBUG: Using URL: {url}")
+    print(f"DEBUG: Token starts with: {token[:10]}...")
+    
+    # Firestore REST format requires types (stringValue, etc.)
+    firestore_data = {
+        "fields": {
+            "site": {"stringValue": data['site']},
+            "username": {"stringValue": data['username']},
+            "encryptedPassword": {"stringValue": data['encryptedPassword']},
+            "iv": {"stringValue": data['iv']},
+            "createdAt": {"timestampValue": datetime.utcnow().isoformat() + "Z"},
+            "updatedAt": {"timestampValue": datetime.utcnow().isoformat() + "Z"}
+        }
+    }
+    
+    # We pass the user's token so Firestore Security Rules apply!
+    # This effectively makes the backend a proxy that enforces structure but respects the rules.
+    headers = {"Authorization": f"Bearer {token}"}
+    
+    response = requests.post(url, json=firestore_data, headers=headers)
+    
+    if response.status_code != 200:
+        print(f"Firestore Create Error: {response.status_code}")
+        print(response.text)
+        return jsonify({'error': 'Firestore Error', 'details': response.text}), response.status_code
+        
+    # Response contains the created document info
+    doc_info = response.json()
+    # Extract ID from "name": "projects/.../documents/users/uid/vault/DOC_ID"
+    doc_id = doc_info['name'].split('/')[-1]
+    
+    return jsonify({'id': doc_id, 'message': 'Password stored successfully'}), 201
 
 def get_passwords():
     uid = request.uid
-    vault_ref = db_client().collection('users').document(uid).collection('vault')
-    docs = vault_ref.stream()
+    token = request.token
     
-    results = []
-    for doc in docs:
-        item = doc.to_dict()
-        item['id'] = doc.id
-        results.append(item)
+    url = f"{get_firestore_base_url()}/users/{uid}/vault"
+    headers = {"Authorization": f"Bearer {token}"}
+    
+    response = requests.get(url, headers=headers)
+    
+    if response.status_code != 200:
+        print(f"Firestore List Error: {response.status_code}")
+        print(response.text)
+        return jsonify({'error': 'Firestore Error', 'details': response.text}), response.status_code
         
+    data = response.json()
+    results = []
+    
+    if 'documents' in data:
+        for doc in data['documents']:
+            fields = doc.get('fields', {})
+            item = {
+                'id': doc['name'].split('/')[-1],
+                'site': fields.get('site', {}).get('stringValue', ''),
+                'username': fields.get('username', {}).get('stringValue', ''),
+                'encryptedPassword': fields.get('encryptedPassword', {}).get('stringValue', ''),
+                'iv': fields.get('iv', {}).get('stringValue', ''),
+            }
+            results.append(item)
+            
     return jsonify(results), 200
 
 def delete_password(entry_id):
     uid = request.uid
-    # Ensure the document belongs to the user
-    doc_ref = db_client().collection('users').document(uid).collection('vault').document(entry_id)
-    doc_ref.delete()
+    token = request.token
+    
+    url = f"{get_firestore_base_url()}/users/{uid}/vault/{entry_id}"
+    headers = {"Authorization": f"Bearer {token}"}
+    
+    response = requests.delete(url, headers=headers)
+    
+    if response.status_code != 200:
+        return jsonify({'error': 'Firestore Error', 'details': response.text}), response.status_code
     
     return jsonify({'message': 'Password deleted'}), 200
-
-def firestore_timestamp():
-    from datetime import datetime
-    return datetime.utcnow()

@@ -4,12 +4,12 @@ from app.controllers.vault_controller import add_password, get_passwords, delete
 
 vault_bp = Blueprint('vault', __name__)
 
-@vault_bp.route('/', methods=['POST'])
+@vault_bp.route('', methods=['POST'])
 @verify_firebase_token
 def add():
     return add_password()
 
-@vault_bp.route('/', methods=['GET'])
+@vault_bp.route('', methods=['GET'])
 @verify_firebase_token
 def list_all():
     return get_passwords()
