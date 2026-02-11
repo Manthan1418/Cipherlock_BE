@@ -1,7 +1,5 @@
 import os
-from dotenv import load_dotenv
-
-load_dotenv()
+# load_dotenv() - Removed for Vercel deployment compatibility
 
 class Config:
     SECRET_KEY = os.environ.get('FLASK_SECRET_KEY') or 'dev-key-please-change'
