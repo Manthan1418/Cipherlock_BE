@@ -1,5 +1,9 @@
 import os
-# load_dotenv() - Removed for Vercel deployment compatibility
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass # python-dotenv not installed, skipping (e.g. Vercel)
 
 class Config:
     SECRET_KEY = os.environ.get('FLASK_SECRET_KEY') or 'dev-key-please-change'
