@@ -6,6 +6,7 @@ from flask_talisman import Talisman
 from app.config import Config
 from app.extensions.firebase import init_firebase
 from app.routes.vault_routes import vault_bp
+from app.routes.auth_routes import auth_bp
 
 def create_app(config_class=Config):
     app = Flask(__name__)
@@ -29,6 +30,7 @@ def create_app(config_class=Config):
 
     # Register Blueprints
     app.register_blueprint(vault_bp, url_prefix='/api/vault')
+    app.register_blueprint(auth_bp, url_prefix='/api/auth')
 
     @app.route('/api/health')
     def health_check():
