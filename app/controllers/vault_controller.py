@@ -123,3 +123,40 @@ def delete_password(entry_id):
         return jsonify({'error': 'Firestore Error', 'details': response.text}), response.status_code
     
     return jsonify({'message': 'Password deleted'}), 200
+
+def update_password(entry_id):
+    uid = request.uid
+    token = request.token
+    data = request.json
+    
+    required_fields = ['site', 'username', 'encryptedPassword', 'iv']
+    if not all(k in data for k in required_fields):
+        return jsonify({'error': 'Missing required fields'}), 400
+
+    url = f"{get_firestore_base_url()}/users/{uid}/vault/{entry_id}"
+    
+    # Firestore REST API for Patch/Update
+    # We use patch ensure we only update fields we want, though here we replace all main fields
+    firestore_data = {
+        "fields": {
+            "site": {"stringValue": data['site']},
+            "username": {"stringValue": data['username']},
+            "encryptedPassword": {"stringValue": data['encryptedPassword']},
+            "iv": {"stringValue": data['iv']},
+            "updatedAt": {"timestampValue": datetime.utcnow().isoformat() + "Z"}
+        }
+    }
+    
+    headers = {"Authorization": f"Bearer {token}"}
+    
+    # Using PATCH to update specific fields. 
+    # Note: If we wanted to merge, we'd adds ?updateMask.fieldPaths=site&...
+    # But here we probably want to overwrite the content fields.
+    response = requests.patch(url, json=firestore_data, headers=headers)
+    
+    if response.status_code != 200:
+        print(f"Firestore Update Error: {response.status_code}")
+        print(response.text)
+        return jsonify({'error': 'Firestore Error', 'details': response.text}), response.status_code
+        
+    return jsonify({'id': entry_id, 'message': 'Password updated successfully'}), 200

@@ -23,3 +23,9 @@ def get_one(entry_id):
 @verify_firebase_token
 def delete(entry_id):
     return delete_password(entry_id)
+
+@vault_bp.route('/<entry_id>', methods=['PUT'])
+@verify_firebase_token
+def update(entry_id):
+    from app.controllers.vault_controller import update_password
+    return update_password(entry_id)
