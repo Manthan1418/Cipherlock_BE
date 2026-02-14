@@ -22,22 +22,28 @@ from webauthn.helpers.structs import (
     AttestationConveyancePreference,
     AuthenticatorAttachment,
 )
+from flask import current_app
 from app.extensions.firestore import FirestoreClient, store_challenge, get_challenge
 
-# Configuration
-RP_ID = "localhost"  # Can be configured via env vars
-RP_NAME = "Cipherlock Vault"
-ORIGIN = "http://localhost:5173" # Frontend URL
-
 class WebAuthnService:
+    @staticmethod
+    def _get_config():
+        return {
+            'rp_id': current_app.config['RP_ID'],
+            'rp_name': current_app.config['RP_NAME'],
+            'origin': current_app.config['ORIGIN']
+        }
+
     @staticmethod
     def generate_registration_options(user_id, user_email):
         """
         Generate options for creating a new credential
         """
+        config = WebAuthnService._get_config()
+        
         options = generate_registration_options(
-            rp_id=RP_ID,
-            rp_name=RP_NAME,
+            rp_id=config['rp_id'],
+            rp_name=config['rp_name'],
             user_id=user_id.encode('utf-8'), # User ID must be bytes
             user_name=user_email,
             user_display_name=user_email,
@@ -59,6 +65,8 @@ class WebAuthnService:
         """
         Verify the response from the authenticator
         """
+        config = WebAuthnService._get_config()
+        
         # Retrieve challenge
         challenge_data = get_challenge(user_id)
         
@@ -73,8 +81,8 @@ class WebAuthnService:
             verification = verify_registration_response(
                 credential=credential,
                 expected_challenge=expected_challenge,
-                expected_origin=ORIGIN,
-                expected_rp_id=RP_ID,
+                expected_origin=config['origin'],
+                expected_rp_id=config['rp_id'],
                 require_user_verification=True,
             )
             
@@ -128,13 +136,14 @@ class WebAuthnService:
 
     @staticmethod
     def generate_login_options(user_id=None):
+        config = WebAuthnService._get_config()
         allow_credentials = None
         # IF we have user_id, we should try to fetch credentials.
         # But we don't have a token to read `users/{uid}/credentials`.
         # So we continue with empty allow_credentials (Usernameless / Resident Key).
         
         options = generate_authentication_options(
-            rp_id=RP_ID,
+            rp_id=config['rp_id'],
             allow_credentials=allow_credentials,
             user_verification=UserVerificationRequirement.PREFERRED,
         )
@@ -148,6 +157,8 @@ class WebAuthnService:
 
     @staticmethod
     def verify_login_response(user_id, response_body):
+        config = WebAuthnService._get_config()
+        
         # 1. Get Challenge
         challenge_data = get_challenge(user_id)
         if not challenge_data or challenge_data['type'] != 'login':
@@ -166,7 +177,7 @@ class WebAuthnService:
         # But we don't have a token!
         
         # DEV MODE BYPASS
-        if RP_ID == "localhost":
+        if config['rp_id'] == "localhost":
             print("WARNING: Bypassing WebAuthn Signature Verification for Localhost Development.", file=sys.stderr)
             # We assume valid if structured correctly because we can't verify signature without public key
             return {
