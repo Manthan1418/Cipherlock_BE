@@ -60,29 +60,51 @@ class FirestoreClient:
         headers = {"Authorization": f"Bearer {token}"}
         return requests.patch(url, json=data, headers=headers)
 
-# GLOBAL IN-MEMORY CHALLENGE STORE
-# Since we cannot easily write to Firestore without Admin SDK or User Token (and login has no token yet),
-# We will store challenges in memory. 
-# NOTE: This won't work across multiple worker processes (gunicorn/uwsgi) unless we use Redis/Memcached.
-# For this local dev / MVP, it is acceptable.
-CHALLENGE_STORE = {}
+try:
+    from firebase_admin import firestore
+except ImportError:
+    firestore = None
+from datetime import datetime, timezone
 
-def store_challenge(key, challenge, type):
-    CHALLENGE_STORE[key] = {
-        'challenge': challenge,
-        'type': type,
-        'timestamp': datetime.now().timestamp()
-    }
+def store_challenge(user_id, challenge, type):
+    try:
+        db = firestore.client()
+        # Expires in 10 minutes
+        # We store in a separate collection 'webauthn_challenges'
+        # Doc ID is user_id. This effectively limits user to 1 active challenge at a time (good for security/preventing spam)
+        db.collection('webauthn_challenges').document(user_id).set({
+            'challenge': challenge,
+            'type': type,
+            'timestamp': firestore.SERVER_TIMESTAMP
+        })
+    except Exception as e:
+        print(f"Error storing challenge: {e}")
+        # Fallback to in-memory if Firestore fails (e.g. locally without creds)? 
+        # No, explicit failure is better than silent in-memory fallback that breaks in prod.
+        raise e
 
-def get_challenge(key):
-    # Retrieve and delete (nonce)
-    data = CHALLENGE_STORE.get(key)
-    if data:
-        # Check expiration (e.g. 5 mins)
-        if datetime.now().timestamp() - data['timestamp'] > 300:
-            del CHALLENGE_STORE[key]
-            return None
-        del CHALLENGE_STORE[key]
-    return data
-
-from datetime import datetime
+def get_challenge(user_id):
+    try:
+        db = firestore.client()
+        doc_ref = db.collection('webauthn_challenges').document(user_id)
+        doc = doc_ref.get()
+        
+        if doc.exists:
+            data = doc.to_dict()
+            # Delete after retrieval to prevent replay
+            doc_ref.delete()
+            
+            # Check expiration (5 minutes)
+            timestamp = data.get('timestamp')
+            if timestamp:
+                # Firestore timestamp is datetime with tzinfo
+                now = datetime.now(timezone.utc)
+                if (now - timestamp).total_seconds() > 300:
+                    print("Challenge expired")
+                    return None
+            
+            return data
+        return None
+    except Exception as e:
+        print(f"Error retrieving challenge: {e}")
+        return None
