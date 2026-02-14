@@ -29,8 +29,8 @@ def init_firebase(app):
             print("Firebase Admin SDK Initialized Successfully")
     except Exception as e:
         import traceback
-        key_preview = app.config.get('FIREBASE_PRIVATE_KEY', '')[:30] if app.config.get('FIREBASE_PRIVATE_KEY') else 'None'
-        INIT_ERROR = f"Error: {str(e)}\nKey Preview: {key_preview}...\nTrace:\n{traceback.format_exc()}"
+        raw_key_preview = repr(app.config.get('FIREBASE_PRIVATE_KEY', ''))[:100]
+        INIT_ERROR = f"Error: {str(e)}\nRaw Key repr(): {raw_key_preview}...\nTrace:\n{traceback.format_exc()}"
         print(f"Failed to initialize Firebase Admin SDK: {e}")
 
 def get_google_auth_url():
