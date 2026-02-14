@@ -13,7 +13,7 @@ def init_firebase(app):
             cert = {
                 "type": "service_account",
                 "project_id": app.config['FIREBASE_PROJECT_ID'],
-                "private_key": app.config['FIREBASE_PRIVATE_KEY'].replace('\\n', '\n').strip('"'),
+                "private_key": app.config['FIREBASE_PRIVATE_KEY'].replace('\\n', '\n').replace('\\\\n', '\n').strip('"'),
                 "client_email": app.config['FIREBASE_CLIENT_EMAIL'],
                 "token_uri": "https://oauth2.googleapis.com/token",
             }
