@@ -57,9 +57,14 @@ def firebase_status():
     try:
         from firebase_admin import firestore
         import firebase_admin
+        from app.extensions.firebase import INIT_ERROR
         
         if not firebase_admin._apps:
-             return jsonify({'status': 'Failed', 'error': 'Firebase App not initialized'}), 500
+             return jsonify({
+                 'status': 'Failed', 
+                 'error': 'Firebase App not initialized',
+                 'init_err': INIT_ERROR
+             }), 500
              
         db = firestore.client()
         return jsonify({'status': 'Firebase Admin SDK initialized successfully'}), 200

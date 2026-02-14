@@ -6,7 +6,11 @@ from firebase_admin import credentials
 # We no longer use firebase_admin here because of the private key issues on the user's machine.
 # Instead, we will helpers to interact with the REST APIs.
 
+# Global to store init error for debugging
+INIT_ERROR = None
+
 def init_firebase(app):
+    global INIT_ERROR
     try:
         if not firebase_admin._apps:
             # Construct certificate dict
@@ -21,6 +25,8 @@ def init_firebase(app):
             firebase_admin.initialize_app(cred)
             print("Firebase Admin SDK Initialized Successfully")
     except Exception as e:
+        import traceback
+        INIT_ERROR = f"{str(e)}\n{traceback.format_exc()}"
         print(f"Failed to initialize Firebase Admin SDK: {e}")
 
 def get_google_auth_url():
