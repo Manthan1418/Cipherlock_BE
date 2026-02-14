@@ -22,16 +22,32 @@ from webauthn.helpers.structs import (
     AttestationConveyancePreference,
     AuthenticatorAttachment,
 )
-from flask import current_app
+from flask import current_app, request
 from app.extensions.firestore import FirestoreClient, store_challenge, get_challenge
 
 class WebAuthnService:
     @staticmethod
     def _get_config():
+        # Dynamic origin handling for Vercel Previews
+        origin = request.headers.get('Origin') or current_app.config['ORIGIN']
+        rp_id = current_app.config['RP_ID']
+        
+        # If we are on Vercel (or just want dynamic handling) and origin matches,
+        # we can trust the origin's hostname as the RP_ID.
+        # This fixes credentials being bound to specific deployment URLs vs production URLs.
+        if origin and 'vercel.app' in origin:
+             try:
+                 from urllib.parse import urlparse
+                 hostname = urlparse(origin).hostname
+                 if hostname:
+                     rp_id = hostname
+             except Exception:
+                 pass
+
         return {
-            'rp_id': current_app.config['RP_ID'],
+            'rp_id': rp_id,
             'rp_name': current_app.config['RP_NAME'],
-            'origin': current_app.config['ORIGIN']
+            'origin': origin
         }
 
     @staticmethod
