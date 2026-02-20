@@ -93,3 +93,20 @@ def firebase_status():
     except Exception as e:
         import traceback
         return jsonify({'status': 'Failed', 'error': str(e), 'trace': traceback.format_exc()}), 500
+@auth_bp.route('/webauthn/debug', methods=['GET'])
+def webauthn_debug():
+    """Temporary debug endpoint - remove after fixing"""
+    from flask import jsonify
+    import traceback
+    try:
+        from app.services.webauthn_service import WebAuthnService
+        # Run with a fake test user ID to see what breaks
+        result = WebAuthnService.generate_registration_options('debug-test-user-123', 'debug@test.com')
+        return jsonify({'status': 'ok', 'sample': str(result)[:200]}), 200
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'error': str(e),
+            'type': type(e).__name__,
+            'trace': traceback.format_exc()
+        }), 500
