@@ -8,3 +8,4 @@ gunicorn
 python-dotenv
 cryptography
 pyotp==2.9.0
+webauthn==1.11.1
