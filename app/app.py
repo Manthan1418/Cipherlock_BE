@@ -12,34 +12,6 @@ def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
 
-    # Initialize Extensions
-    # CRITICAL: Firebase must be initialized early for FirestoreClient to work
-    init_firebase(app)
-
-    # Security Extensions
-    # Enable CORS for the specific frontend origin AND Vercel previews
-    # Using regex to match https://cipherlock-*.vercel.app
-    CORS(app, resources={
-        r"/api/*": {
-            "origins": [
-                app.config['ORIGIN'],  # Main production origin
-                r"^https://cipherlock-.*\.vercel\.app$",  # Vercel preview deployments
-                r"^http://localhost:\d+$"  # Local development
-            ]
-        }
-    }, supports_credentials=True)
-
-    # Rate Limiting
-    Limiter(
-        get_remote_address,
-        app=app,
-        default_limits=["2000 per day", "500 per hour"],
-        storage_uri="memory://",
-        default_limits_exempt_when=lambda: app.request.method == 'OPTIONS'
-    )
-
-    # GLOBAL OPTIONS HANDLER (The "Nuclear" Fix)
-    # This must run before all other requests to ensure preflight always succeeds
     # GLOBAL OPTIONS HANDLER (The "Nuclear" Fix)
     # This must run before all other requests to ensure preflight always succeeds
     @app.before_request
@@ -66,6 +38,7 @@ def create_app(config_class=Config):
                 
                 if allow:
                     response.headers.add('Access-Control-Allow-Origin', origin)
+                    # Explicitly allow all headers requested by the frontend
                     response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With,Accept,Origin')
                     response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
                     response.headers.add('Access-Control-Allow-Credentials', 'true')
@@ -73,6 +46,34 @@ def create_app(config_class=Config):
             # Key modification: Force 200 OK
             response.status_code = 200
             return response
+
+    # Initialize Extensions
+    # CRITICAL: Firebase must be initialized early for FirestoreClient to work
+    init_firebase(app)
+
+    # Security Extensions
+    # Enable CORS for the specific frontend origin AND Vercel previews
+    # Using regex to match https://cipherlock-*.vercel.app
+    CORS(app, resources={
+        r"/api/*": {
+            "origins": [
+                app.config['ORIGIN'],  # Main production origin
+                r"^https://cipherlock-.*\.vercel\.app$",  # Vercel preview deployments
+                r"^http://localhost:\d+$"  # Local development
+            ]
+        }
+    }, supports_credentials=True)
+
+    # Rate Limiting
+    Limiter(
+        get_remote_address,
+        app=app,
+        default_limits=["2000 per day", "500 per hour"],
+        storage_uri="memory://",
+        default_limits_exempt_when=lambda: app.request.method == 'OPTIONS'
+    )
+
+
 
     # HTTP Security Headers
     # Force HTTPS in production (when not debugging)
