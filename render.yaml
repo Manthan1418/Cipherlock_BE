@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: passman-backend
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app.app:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.9.0
+      - key: FLASK_SECRET_KEY
+        generateValue: true
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+      - key: FIREBASE_CLIENT_EMAIL
+        sync: false
+      - key: FIREBASE_PRIVATE_KEY
+        sync: false
+      - key: FIREBASE_API_KEY
+        sync: false
+      - key: RP_ID
+        sync: false
+      - key: RP_NAME
+        value: Cipherlock Vault
+      - key: ORIGIN
+        sync: false
