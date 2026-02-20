@@ -17,15 +17,25 @@ def create_app(config_class=Config):
     init_firebase(app)
 
     # Security Extensions
-    # Enable CORS for the specific frontend origin
-    CORS(app, resources={r"/api/*": {"origins": app.config['ORIGIN']}}, supports_credentials=True)
+    # Enable CORS for the specific frontend origin AND Vercel previews
+    # Using regex to match https://cipherlock-*.vercel.app
+    CORS(app, resources={
+        r"/api/*": {
+            "origins": [
+                app.config['ORIGIN'],  # Main production origin
+                r"^https://cipherlock-.*\.vercel\.app$",  # Vercel preview deployments
+                r"^http://localhost:\d+$"  # Local development
+            ]
+        }
+    }, supports_credentials=True)
 
     # Rate Limiting
     Limiter(
         get_remote_address,
         app=app,
         default_limits=["2000 per day", "500 per hour"],
-        storage_uri="memory://"
+        storage_uri="memory://",
+        default_limits_exempt_when=lambda: app.request.method == 'OPTIONS'
     )
 
     # HTTP Security Headers
