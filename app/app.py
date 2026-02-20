@@ -20,7 +20,13 @@ def create_app(config_class=Config):
 
     # Security Extensions
     # CORS: Allow all since we are behind a proxy (Same-Origin)
-    CORS(app)
+    CORS(app, resources={
+        r"/*": {
+            "origins": "*",
+            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+            "allow_headers": ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"]
+        }
+    })
 
     # Rate Limiting
     Limiter(

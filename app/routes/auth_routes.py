@@ -24,7 +24,7 @@ def disable():
 def verify():
     return verify_2fa_login()
 
-@auth_bp.route('/2fa/status', methods=['GET', 'OPTIONS'])
+@auth_bp.route('/2fa/status', methods=['GET'])
 @verify_firebase_token
 def status():
     return get_2fa_status()
