@@ -23,6 +23,7 @@ from webauthn.helpers.structs import (
     AuthenticatorAttachment,
 )
 from flask import current_app, request
+from datetime import datetime, timezone
 from app.extensions.firestore import FirestoreClient, store_challenge, get_challenge
 
 class WebAuthnService:

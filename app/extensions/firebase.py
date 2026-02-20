@@ -11,11 +11,17 @@ INIT_ERROR = None
 
 def init_firebase(app):
     global INIT_ERROR
+    # If already initialized (e.g., hot reload), skip
+    if firebase_admin._apps:
+        print("Firebase Admin SDK already initialized, skipping.")
+        return
     try:
             # Clean up the private key
             raw_key = app.config['FIREBASE_PRIVATE_KEY']
+            if not raw_key:
+                raise ValueError("FIREBASE_PRIVATE_KEY environment variable is not set!")
             # Handle Vercel's double escaping, newlines, and potential wrapping quotes (single or double)
-            private_key = raw_key.replace('\\n', '\n').replace('\\\\n', '\n').strip('"').strip("'")
+            private_key = raw_key.replace('\\\\n', '\\n').replace('\\n', '\n').strip('"').strip("'")
             
             cert = {
                 "type": "service_account",
@@ -29,9 +35,9 @@ def init_firebase(app):
             print("Firebase Admin SDK Initialized Successfully")
     except Exception as e:
         import traceback
-        raw_key_preview = repr(app.config.get('FIREBASE_PRIVATE_KEY', ''))[:100]
+        raw_key_preview = repr(app.config.get('FIREBASE_PRIVATE_KEY', 'NOT_SET'))[:100]
         INIT_ERROR = f"Error: {str(e)}\nRaw Key repr(): {raw_key_preview}...\nTrace:\n{traceback.format_exc()}"
-        print(f"Failed to initialize Firebase Admin SDK: {e}")
+        print(f"CRITICAL: Failed to initialize Firebase Admin SDK: {e}")
 
 def get_google_auth_url():
     api_key = current_app.config['FIREBASE_API_KEY']
