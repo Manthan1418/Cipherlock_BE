@@ -15,12 +15,15 @@ from webauthn.helpers import (
 from webauthn.helpers.structs import (
     AuthenticatorSelectionCriteria,
     UserVerificationRequirement,
+    ResidentKeyRequirement,
     PublicKeyCredentialCreationOptions,
     PublicKeyCredentialRequestOptions,
+    PublicKeyCredentialDescriptor,
     RegistrationCredential,
     AuthenticationCredential,
     AttestationConveyancePreference,
     AuthenticatorAttachment,
+    AuthenticatorTransport,
 )
 from flask import current_app, request
 from datetime import datetime, timezone
@@ -66,7 +69,7 @@ class WebAuthnService:
             authenticator_selection=AuthenticatorSelectionCriteria(
                 user_verification=UserVerificationRequirement.PREFERRED,
                 authenticator_attachment=AuthenticatorAttachment.PLATFORM, 
-                resident_key=None,
+                resident_key=ResidentKeyRequirement.REQUIRED,
             ),
         )
         
@@ -118,13 +121,28 @@ class WebAuthnService:
     def generate_login_options(user_id=None):
         config = WebAuthnService._get_config()
         
-        # If user_id provided, we COULD look up their credentials to provide allowCredentials.
-        # But for simplicity/speed, we often use empty allowCredentials (usernameless flow support) 
-        # or rely on client to select.
+        # Look up stored credentials for this user to populate allowCredentials.
+        # This lets the browser find the right passkey even if it wasn't stored as discoverable.
+        allow_credentials = None
+        if user_id:
+            creds = FirestoreClient.list_docs(f"users/{user_id}/webauthn_credentials")
+            if creds:
+                allow_credentials = []
+                for c in creds:
+                    transports = None
+                    raw_transports = c.get('transports', [])
+                    if raw_transports:
+                        transports = [AuthenticatorTransport(t) for t in raw_transports]
+                    allow_credentials.append(
+                        PublicKeyCredentialDescriptor(
+                            id=base64url_to_bytes(c['id']),
+                            transports=transports,
+                        )
+                    )
         
         options = generate_authentication_options(
             rp_id=config['rp_id'],
-            allow_credentials=None,
+            allow_credentials=allow_credentials or [],
             user_verification=UserVerificationRequirement.PREFERRED,
         )
         

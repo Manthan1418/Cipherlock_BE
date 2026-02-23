@@ -43,6 +43,19 @@ class FirestoreClient:
             print(f"Error updating doc {collection}/{doc_id}: {e}")
             return False
 
+    @staticmethod
+    def list_docs(collection):
+        """List all documents in a collection/subcollection path."""
+        db = FirestoreClient.get_db()
+        if not db: return []
+        
+        try:
+            docs = db.collection(collection).stream()
+            return [doc.to_dict() for doc in docs]
+        except Exception as e:
+            print(f"Error listing docs in {collection}: {e}")
+            return []
+
 # Challenge Storage (No In-Memory Logic)
 def store_challenge(user_id, challenge, type):
     db = FirestoreClient.get_db()
