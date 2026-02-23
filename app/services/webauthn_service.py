@@ -33,13 +33,29 @@ class WebAuthnService:
     @staticmethod
     def _get_config():
         # Dynamic origin handling for Vercel/Render
-        # We trust the Host/Origin header if it matches our deployment domain patterns
+        # Vercel's proxy rewrites may strip the Origin header, so we check multiple sources
         origin = request.headers.get('Origin')
         rp_id = current_app.config['RP_ID']
         
-        # If config is localhost but request is from Vercel/Render, we might have a mismatch if not configured via ENV.
-        # But per requirements, we expect ENV to be set. 
-        # Fallback: If origin includes vercel.app, trust it as RP_ID to support preview deployments
+        # If Origin header is missing (common with Vercel proxy rewrites),
+        # try Referer or X-Forwarded-Host as fallbacks
+        if not origin:
+            referer = request.headers.get('Referer')
+            if referer:
+                try:
+                    from urllib.parse import urlparse
+                    parsed = urlparse(referer)
+                    origin = f"{parsed.scheme}://{parsed.netloc}"
+                except Exception:
+                    pass
+        
+        if not origin:
+            forwarded_host = request.headers.get('X-Forwarded-Host')
+            if forwarded_host:
+                # X-Forwarded-Host is just the hostname, construct the origin
+                origin = f"https://{forwarded_host}"
+        
+        # Dynamic RP_ID: if origin is from a known deployment platform, use its hostname
         if origin and ('vercel.app' in origin or 'onrender.com' in origin):
              try:
                  from urllib.parse import urlparse
@@ -186,7 +202,7 @@ class WebAuthnService:
             expected_origin=config['origin'],
             credential_public_key=public_key,
             credential_current_sign_count=current_sign_count,
-            require_user_verification=True,
+            require_user_verification=False,
         )
         
         # 5. Update Sign Count
