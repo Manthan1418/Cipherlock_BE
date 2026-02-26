@@ -59,22 +59,7 @@ class WebAuthnService:
         }
 
     @staticmethod
-    def _validate_origin(client_data_origin, expected_origins):
-        """
-        Helper to validate origin. 
-        Native Android Credential Manager auto-generates the origin as android:apk-key-hash:<SHA256>.
-        If we don't know the exact hash ahead of time in environment variables, we can allow any
-        android app link origin *provided* the user successfully authenticated and the RP ID matches.
-        """
-        if client_data_origin in expected_origins:
-            return True
-            
-        if client_data_origin.startswith("android:apk-key-hash:"):
-            # If the client sent an Android origin but we didn't strictly configure it, we can accept it.
-            # The RP ID binding still ensures they can't create credentials for other sites.
-            return True
-            
-        return False
+
 
     @staticmethod
     def generate_registration_options(user_id, user_email):
@@ -110,14 +95,19 @@ class WebAuthnService:
         try:
             credential = parse_registration_credential_json(response_body)
             
-            # Use custom origin validation callback to support dynamic Android APK hashes
-            def origin_validator(origin):
-                return WebAuthnService._validate_origin(origin, config['expected_origins'])
+            # Dynamically allow Android native App Link origins
+            import json
+            client_data_json = base64url_to_bytes(response_body['response']['clientDataJSON'])
+            client_data = json.loads(client_data_json.decode('utf-8'))
+            client_origin = client_data.get('origin', '')
+            
+            if client_origin.startswith('android:apk-key-hash:') and client_origin not in config['expected_origins']:
+                config['expected_origins'].append(client_origin)
 
             verification = verify_registration_response(
                 credential=credential,
                 expected_challenge=expected_challenge,
-                expected_origin=origin_validator,
+                expected_origin=config['expected_origins'],
                 expected_rp_id=config['rp_id'],
                 require_user_verification=True,
             )
@@ -223,16 +213,21 @@ class WebAuthnService:
         public_key = base64url_to_bytes(public_key_b64)
         current_sign_count = cred_doc.get('counter', cred_doc.get('sign_count', 0))
 
-        # Use custom origin validation callback to support dynamic Android APK hashes
-        def origin_validator(origin):
-            return WebAuthnService._validate_origin(origin, config['expected_origins'])
+        # Dynamically allow Android native App Link origins
+        import json
+        client_data_json = base64url_to_bytes(response_body['response']['clientDataJSON'])
+        client_data = json.loads(client_data_json.decode('utf-8'))
+        client_origin = client_data.get('origin', '')
+        
+        if client_origin.startswith('android:apk-key-hash:') and client_origin not in config['expected_origins']:
+            config['expected_origins'].append(client_origin)
 
         # 4. Verify
         verification = verify_authentication_response(
             credential=credential,
             expected_challenge=expected_challenge,
             expected_rp_id=config['rp_id'],
-            expected_origin=origin_validator,
+            expected_origin=config['expected_origins'],
             credential_public_key=public_key,
             credential_current_sign_count=current_sign_count,
             require_user_verification=False,
