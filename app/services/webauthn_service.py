@@ -32,43 +32,30 @@ from app.extensions.firestore import FirestoreClient, store_challenge, get_chall
 class WebAuthnService:
     @staticmethod
     def _get_config():
-        # Dynamic origin handling for Vercel/Render
-        # Vercel's proxy rewrites may strip the Origin header, so we check multiple sources
-        origin = request.headers.get('Origin')
-        rp_id = current_app.config['RP_ID']
+        # Enforce unified root domain RP ID
+        rp_id = "yourdomain.com"
         
-        # If Origin header is missing (common with Vercel proxy rewrites),
-        # try Referer or X-Forwarded-Host as fallbacks
-        if not origin:
-            referer = request.headers.get('Referer')
-            if referer:
-                try:
-                    from urllib.parse import urlparse
-                    parsed = urlparse(referer)
-                    origin = f"{parsed.scheme}://{parsed.netloc}"
-                except Exception:
-                    pass
+        # Valid origins must include the web platform and the Android App Link origin.
+        # Ensure we always accept localhost in dev environments if configured.
+        config_origin = current_app.config.get('ORIGIN', 'http://localhost:5173')
         
-        if not origin:
-            forwarded_host = request.headers.get('X-Forwarded-Host')
-            if forwarded_host:
-                # X-Forwarded-Host is just the hostname, construct the origin
-                origin = f"https://{forwarded_host}"
-        
-        # Dynamic RP_ID: if origin is from a known deployment platform, use its hostname
-        if origin and ('vercel.app' in origin or 'onrender.com' in origin):
-             try:
-                 from urllib.parse import urlparse
-                 hostname = urlparse(origin).hostname
-                 if hostname:
-                     rp_id = hostname
-             except Exception:
-                 pass
+        # For Android, production will use the actual APK key hash in verifying assertions
+        # If the backend is validating a native passkey via Android Credential Manager, 
+        # the origin is sent as android:apk-key-hash:<hash>.
+        android_origin_hash = current_app.config.get('ANDROID_APK_KEY_HASH', '')
+        android_origin = f"android:apk-key-hash:{android_origin_hash}" if android_origin_hash else None
 
+        expected_origins = [
+            "https://yourdomain.com",
+            config_origin
+        ]
+        if android_origin:
+            expected_origins.append(android_origin)
+            
         return {
             'rp_id': rp_id,
-            'rp_name': current_app.config['RP_NAME'],
-            'origin': origin or current_app.config['ORIGIN']
+            'rp_name': current_app.config.get('RP_NAME', 'Cipherlock Vault'),
+            'expected_origins': list(set(expected_origins)) # Deduplicate and return as list
         }
 
     @staticmethod
@@ -108,21 +95,25 @@ class WebAuthnService:
             verification = verify_registration_response(
                 credential=credential,
                 expected_challenge=expected_challenge,
-                expected_origin=config['origin'],
+                expected_origin=config['expected_origins'],
                 expected_rp_id=config['rp_id'],
                 require_user_verification=True,
             )
             
             cred_id = bytes_to_base64url(verification.credential_id)
+            now_iso = str(datetime.now(timezone.utc))
+            
             new_cred = {
-                 "id": cred_id,
-                 "public_key": bytes_to_base64url(verification.credential_public_key),
-                 "sign_count": verification.sign_count,
-                 "transports": credential.response.transports or [],
-                 "created_at": str(datetime.now(timezone.utc))
+                 "userId": user_id,
+                 "credentialId": cred_id,
+                 "publicKey": bytes_to_base64url(verification.credential_public_key),
+                 "counter": verification.sign_count,
+                 "transports": credential.response.transports or ["internal"],
+                 "createdAt": now_iso,
+                 "lastUsedAt": now_iso
             }
             
-            # Store credential in subcollection
+            # Store credential in subcollection using standardized field names
             FirestoreClient.update_doc(f"users/{user_id}/webauthn_credentials", cred_id, new_cred)
             
             return {
@@ -136,6 +127,8 @@ class WebAuthnService:
     @staticmethod
     def generate_login_options(user_id=None):
         config = WebAuthnService._get_config()
+        import secrets
+        import json
         
         # Look up stored credentials for this user to populate allowCredentials.
         # This lets the browser find the right passkey even if it wasn't stored as discoverable.
@@ -151,7 +144,7 @@ class WebAuthnService:
                         transports = [AuthenticatorTransport(t) for t in raw_transports]
                     allow_credentials.append(
                         PublicKeyCredentialDescriptor(
-                            id=base64url_to_bytes(c['id']),
+                            id=base64url_to_bytes(c.get('credentialId', c.get('id'))),
                             transports=transports,
                         )
                     )
@@ -162,17 +155,20 @@ class WebAuthnService:
             user_verification=UserVerificationRequirement.PREFERRED,
         )
         
-        if user_id:
-             store_challenge(user_id, bytes_to_base64url(options.challenge), 'login')
+        session_id = secrets.token_urlsafe(32)
+        store_challenge(session_id, bytes_to_base64url(options.challenge), 'login')
         
-        return options_to_json(options)
+        options_dict = json.loads(options_to_json(options))
+        options_dict['sessionId'] = session_id
+        
+        return options_dict
 
     @staticmethod
-    def verify_login_response(user_id, response_body):
+    def verify_login_response(session_id, response_body, user_id=None):
         config = WebAuthnService._get_config()
         
-        # 1. Get Challenge
-        challenge_data = get_challenge(user_id)
+        # 1. Get Challenge using session_id
+        challenge_data = get_challenge(session_id)
         if not challenge_data or challenge_data['type'] != 'login':
              raise ValueError("Challenge not found or expired")
         
@@ -184,34 +180,47 @@ class WebAuthnService:
         except Exception as e:
             raise ValueError(f"Failed to parse credential: {str(e)}")
 
+        # 2b. Extract user_id from discoverable credential if not provided
+        if not user_id:
+            if not credential.response.user_handle:
+                raise ValueError("No userHandle returned by authenticator, and no internal UID provided.")
+            user_id = credential.response.user_handle.decode('utf-8')
+
         # 3. Get User's Public Key from Firestore
         cred_id = credential.id
         cred_doc = FirestoreClient.get_doc(f"users/{user_id}/webauthn_credentials", cred_id)
         
-        if not cred_doc or 'public_key' not in cred_doc:
+        if not cred_doc:
             raise ValueError("Credential not registered for this user")
             
-        public_key = base64url_to_bytes(cred_doc['public_key'])
-        current_sign_count = cred_doc.get('sign_count', 0)
+        # Support migration from old snake_case format to new camelCase standard
+        public_key_b64 = cred_doc.get('publicKey', cred_doc.get('public_key'))
+        if not public_key_b64:
+            raise ValueError("Invalid credential format in store")
+            
+        public_key = base64url_to_bytes(public_key_b64)
+        current_sign_count = cred_doc.get('counter', cred_doc.get('sign_count', 0))
 
         # 4. Verify
         verification = verify_authentication_response(
             credential=credential,
             expected_challenge=expected_challenge,
             expected_rp_id=config['rp_id'],
-            expected_origin=config['origin'],
+            expected_origin=config['expected_origins'],
             credential_public_key=public_key,
             credential_current_sign_count=current_sign_count,
             require_user_verification=False,
         )
         
-        # 5. Update Sign Count
+        # 5. Update Sign Count and Last Used At
         FirestoreClient.update_doc(f"users/{user_id}/webauthn_credentials", cred_id, {
-            "sign_count": verification.new_sign_count
+            "counter": verification.new_sign_count,
+            "lastUsedAt": str(datetime.now(timezone.utc))
         })
 
         return {
             'verified': True,
-            'new_sign_count': verification.new_sign_count
+            'new_sign_count': verification.new_sign_count,
+            'uid': user_id
         }
         

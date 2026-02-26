@@ -196,7 +196,7 @@ def webauthn_login_options():
             uid = data.get('uid')
         
         options = WebAuthnService.generate_login_options(uid)
-        return current_app.response_class(options, mimetype='application/json'), 200
+        return jsonify(options), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 400
 
@@ -204,19 +204,25 @@ def webauthn_login_verify():
     try:
         data = request.json
         uid = data.get('uid')
+        session_id = data.get('sessionId')
         
-        if not uid:
-            return jsonify({'error': 'UID is required for verification'}), 400
+        if not session_id:
+            return jsonify({'error': 'sessionId is required for verification'}), 400
 
-        # Remove 'uid' from data so it doesn't confuse WebAuthn parser if it's strict
+        # Remove 'uid' and 'sessionId' from data so it doesn't confuse WebAuthn parser if it's strict
         data_for_service = data.copy()
-        if 'uid' in data_for_service:
-            del data_for_service['uid']
+        for key in ['uid', 'sessionId']:
+            if key in data_for_service:
+                del data_for_service[key]
 
-        result = WebAuthnService.verify_login_response(uid, data_for_service)
+        result = WebAuthnService.verify_login_response(session_id, data_for_service, user_id=uid)
+        actual_uid = result.get('uid')
+        
+        if not actual_uid:
+             return jsonify({'error': 'Could not determine user ID from credentials'}), 400
         
         from firebase_admin import auth
-        custom_token = auth.create_custom_token(uid)
+        custom_token = auth.create_custom_token(actual_uid)
         
         return jsonify({
             'verified': True,
