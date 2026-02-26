@@ -173,7 +173,8 @@ def webauthn_register_verify():
     
     try:
         import sys
-        print(f"DEBUG: Verifying WebAuthn Registration for uid={uid}", file=sys.stderr)
+        print(f"\n\n--- DEBUG INCOMING VERIFY WEBAUTHN DATA (REGISTER) ---\n{data}\n-------------------------------------------------------\n\n", file=sys.stderr)
+        
         result = WebAuthnService.verify_registration_response(uid, data, token)
         return jsonify(result), 200
     except Exception as e:
@@ -214,6 +215,9 @@ def webauthn_login_verify():
         for key in ['uid', 'sessionId']:
             if key in data_for_service:
                 del data_for_service[key]
+
+        import sys
+        print(f"\n\n--- DEBUG INCOMING VERIFY WEBAUTHN DATA (LOGIN) ---\n{data_for_service}\n----------------------------------------------------\n\n", file=sys.stderr)
 
         result = WebAuthnService.verify_login_response(session_id, data_for_service, user_id=uid)
         actual_uid = result.get('uid')
