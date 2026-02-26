@@ -32,8 +32,8 @@ from app.extensions.firestore import FirestoreClient, store_challenge, get_chall
 class WebAuthnService:
     @staticmethod
     def _get_config():
-        # Enforce unified root domain RP ID
-        rp_id = "yourdomain.com"
+        # Enforce unified root domain RP ID from environment
+        rp_id = current_app.config.get('RP_ID', 'localhost')
         
         # Valid origins must include the web platform and the Android App Link origin.
         # Ensure we always accept localhost in dev environments if configured.
@@ -46,7 +46,7 @@ class WebAuthnService:
         android_origin = f"android:apk-key-hash:{android_origin_hash}" if android_origin_hash else None
 
         expected_origins = [
-            "https://yourdomain.com",
+            f"https://{rp_id}",
             config_origin
         ]
         if android_origin:
