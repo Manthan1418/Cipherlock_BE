@@ -14,7 +14,6 @@ def create_app(config_class=Config):
     app.config.from_object(config_class)
 
 
-
     # Initialize Extensions
     # CRITICAL: Firebase must be initialized early for FirestoreClient to work
     init_firebase(app)
@@ -36,8 +35,6 @@ def create_app(config_class=Config):
         default_limits=["2000 per day", "500 per hour"],
         storage_uri="memory://"
     )
-
-
 
     # HTTP Security Headers
     # NOTE: Render handles HTTPS at the proxy level. The Flask app runs on HTTP internally.

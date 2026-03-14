@@ -158,12 +158,8 @@ def webauthn_register_options():
         options = WebAuthnService.generate_registration_options(uid, email)
         return current_app.response_class(options, mimetype='application/json'), 200
     except Exception as e:
-        import sys
         import traceback
-        traceback.print_exc()
-        print(f"DEBUG ERROR: {str(e)}", file=sys.stderr)
         current_app.logger.error(f"WebAuthn Options Error: {str(e)}")
-        # Return 500 so we know it crashed, not just bad request
         return jsonify({'error': str(e), 'trace': traceback.format_exc()}), 500
 
 def webauthn_register_verify():
@@ -172,16 +168,10 @@ def webauthn_register_verify():
     data = request.json
     
     try:
-        import sys
-        print(f"\n\n--- DEBUG INCOMING VERIFY WEBAUTHN DATA (REGISTER) ---\n{data}\n-------------------------------------------------------\n\n", file=sys.stderr)
-        
         result = WebAuthnService.verify_registration_response(uid, data, token)
         return jsonify(result), 200
     except Exception as e:
-        import sys
         import traceback
-        traceback.print_exc(file=sys.stderr)
-        print(f"DEBUG ERROR in webauthn_register_verify: {str(e)}", file=sys.stderr)
         current_app.logger.error(f"WebAuthn Reg Error: {str(e)}")
         return jsonify({'error': str(e), 'trace': traceback.format_exc()}), 500
 
@@ -216,9 +206,6 @@ def webauthn_login_verify():
             if key in data_for_service:
                 del data_for_service[key]
 
-        import sys
-        print(f"\n\n--- DEBUG INCOMING VERIFY WEBAUTHN DATA (LOGIN) ---\n{data_for_service}\n----------------------------------------------------\n\n", file=sys.stderr)
-
         result = WebAuthnService.verify_login_response(session_id, data_for_service, user_id=uid)
         actual_uid = result.get('uid')
         
@@ -235,9 +222,6 @@ def webauthn_login_verify():
         }), 200
         
     except Exception as e:
-        import sys
         import traceback
-        traceback.print_exc()
-        print(f"DEBUG ERROR in webauthn_login_verify: {str(e)}", file=sys.stderr)
         current_app.logger.error(f"WebAuthn Login Error: {str(e)}")
         return jsonify({'error': str(e), 'trace': traceback.format_exc()}), 500
