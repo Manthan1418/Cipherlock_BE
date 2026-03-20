@@ -33,6 +33,19 @@ class Config:
     # This should be the full URL of the frontend (e.g. https://my-app.vercel.app)
     ORIGIN = os.environ.get('ORIGIN', 'http://localhost:5173')
 
+    # Default trusted origins
+    TRUSTED_ORIGINS = [
+        'https://cipherlock-fe.vercel.app',
+        'https://passman-fe.vercel.app' # Legacy if any
+    ]
+
     # Optional comma-separated overrides for strict CORS and WebAuthn origin checks.
-    CORS_ORIGINS = [o.strip() for o in os.environ.get('CORS_ORIGINS', ORIGIN).split(',') if o.strip()]
-    WEBAUTHN_ALLOWED_ORIGINS = [o.strip() for o in os.environ.get('WEBAUTHN_ALLOWED_ORIGINS', ORIGIN).split(',') if o.strip()]
+    _raw_cors = os.environ.get('CORS_ORIGINS', ORIGIN)
+    CORS_ORIGINS = [o.strip() for o in _raw_cors.split(',') if o.strip()]
+    
+    # Merge with trusted origins
+    for to in TRUSTED_ORIGINS:
+        if to not in CORS_ORIGINS:
+            CORS_ORIGINS.append(to)
+            
+    WEBAUTHN_ALLOWED_ORIGINS = CORS_ORIGINS
