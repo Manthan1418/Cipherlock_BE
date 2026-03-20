@@ -166,9 +166,13 @@ def get_or_create_kdf_salt():
         if existing_salt:
             return jsonify({'salt': existing_salt}), 200
 
-    salt = secrets.token_hex(16)
+    data = request.get_json() or {}
+    email = data.get('email') or f"user-{uid[:8]}"
+    import hashlib
+    salt_hash = hashlib.sha256(email.encode('utf-8')).hexdigest()[:32]
+    
     fields = {
-        'kdfSalt': {'stringValue': salt}
+        'kdfSalt': {'stringValue': salt_hash}
     }
     update_response = update_user_doc(uid, token, fields, field_paths=['kdfSalt'])
 
@@ -176,7 +180,7 @@ def get_or_create_kdf_salt():
         current_app.logger.error(f"Failed to persist KDF salt: {update_response.status_code} {update_response.text}")
         return jsonify({'error': 'Failed to initialize key salt'}), 500
 
-    return jsonify({'salt': salt}), 200
+    return jsonify({'salt': salt_hash}), 200
 
 # ==========================================
 # WEBAUTHN CONTROLLER METHODS
