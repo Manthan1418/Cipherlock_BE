@@ -1,6 +1,6 @@
 from flask import Blueprint
 from app.middleware.auth_middleware import verify_firebase_token
-from app.controllers.auth_controller import generate_2fa_secret, enable_2fa, disable_2fa, verify_2fa_login, get_2fa_status
+from app.controllers.auth_controller import generate_2fa_secret, enable_2fa, disable_2fa, verify_2fa_login, get_2fa_status, get_or_create_kdf_salt
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -28,6 +28,11 @@ def verify():
 @verify_firebase_token
 def status():
     return get_2fa_status()
+
+@auth_bp.route('/kdf-salt', methods=['POST'])
+@verify_firebase_token
+def kdf_salt():
+    return get_or_create_kdf_salt()
 
 @auth_bp.route('/webauthn/register/options', methods=['POST'])
 @verify_firebase_token

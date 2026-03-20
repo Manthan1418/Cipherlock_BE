@@ -1,4 +1,5 @@
 from flask import Flask
+import os
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -19,12 +20,12 @@ def create_app(config_class=Config):
     init_firebase(app)
 
     # Security Extensions
-    # CORS: Allow all since we are behind a proxy (Same-Origin)
+    # Restrict CORS to trusted frontend origins.
     CORS(app, resources={
         r"/*": {
-            "origins": "*",
+            "origins": app.config.get('CORS_ORIGINS', [app.config.get('ORIGIN', 'http://localhost:5173')]),
             "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-            "allow_headers": ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"]
+            "allow_headers": ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin", "X-2FA-Session"]
         }
     })
 
@@ -42,7 +43,12 @@ def create_app(config_class=Config):
     # We rely on Render's infrastructure to enforce HTTPS instead.
     Talisman(
         app,
-        content_security_policy=None,
+        content_security_policy={
+            'default-src': "'none'",
+            'frame-ancestors': "'none'",
+            'base-uri': "'none'",
+            'form-action': "'none'",
+        },
         force_https=False,  # Render's proxy handles this; enabling causes redirect loops
     )
 
@@ -61,4 +67,5 @@ def create_app(config_class=Config):
 app = create_app()
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    debug_enabled = os.environ.get('FLASK_DEBUG', '').lower() in ('1', 'true', 'yes')
+    app.run(host='0.0.0.0', port=5000, debug=debug_enabled)
