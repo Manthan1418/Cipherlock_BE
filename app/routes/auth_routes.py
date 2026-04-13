@@ -61,8 +61,3 @@ def webauthn_log_verify():
 def webauthn_key_wrap_save():
     return save_webauthn_wrapped_key()
 
-@auth_bp.route('/webauthn/key-wrap/save', methods=['POST'])
-@verify_firebase_token
-def webauthn_key_wrap_save():
-    return save_webauthn_wrapped_key()
-
