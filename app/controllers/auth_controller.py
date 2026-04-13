@@ -253,8 +253,13 @@ def webauthn_login_verify():
         if not actual_uid:
              return jsonify({'error': 'Could not determine user ID from credentials'}), 400
         
-        from firebase_admin import auth
-        custom_token = auth.create_custom_token(actual_uid)
+        try:
+            from firebase_admin import auth
+            custom_token = auth.create_custom_token(actual_uid)
+        except Exception as token_error:
+            current_app.logger.exception(f"Failed to create Firebase custom token: {str(token_error)}")
+            return jsonify({'error': 'Backend Firebase authentication is not configured correctly'}), 500
+
         twofactor_session = create_twofactor_session(actual_uid)
 
         wrapped_vault_key = None

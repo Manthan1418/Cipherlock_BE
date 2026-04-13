@@ -214,6 +214,7 @@ class WebAuthnService:
         return {
             'verified': True,
             'new_sign_count': verification.new_sign_count,
-            'uid': user_id
+            'uid': user_id,
+            'credential_id': cred_id,
         }
         
