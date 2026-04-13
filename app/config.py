@@ -35,5 +35,30 @@ class Config:
     ORIGIN = os.environ.get('ORIGIN', 'http://localhost:5173')
 
     # Optional comma-separated overrides for strict CORS and WebAuthn origin checks.
-    CORS_ORIGINS = [o.strip() for o in os.environ.get('CORS_ORIGINS', ORIGIN).split(',') if o.strip()]
-    WEBAUTHN_ALLOWED_ORIGINS = [o.strip() for o in os.environ.get('WEBAUTHN_ALLOWED_ORIGINS', ORIGIN).split(',') if o.strip()]
+    _cors_env = os.environ.get('CORS_ORIGINS', '').strip()
+    if _cors_env:
+        CORS_ORIGINS = [o.strip() for o in _cors_env.split(',') if o.strip()]
+    elif IS_DEV:
+        CORS_ORIGINS = [
+            'http://localhost:5173',
+            'http://localhost:5174',
+            'http://127.0.0.1:5173',
+            'http://127.0.0.1:5174',
+            ORIGIN,
+        ]
+    else:
+        CORS_ORIGINS = [ORIGIN]
+
+    _webauthn_env = os.environ.get('WEBAUTHN_ALLOWED_ORIGINS', '').strip()
+    if _webauthn_env:
+        WEBAUTHN_ALLOWED_ORIGINS = [o.strip() for o in _webauthn_env.split(',') if o.strip()]
+    elif IS_DEV:
+        WEBAUTHN_ALLOWED_ORIGINS = [
+            'http://localhost:5173',
+            'http://localhost:5174',
+            'http://127.0.0.1:5173',
+            'http://127.0.0.1:5174',
+            ORIGIN,
+        ]
+    else:
+        WEBAUTHN_ALLOWED_ORIGINS = [ORIGIN]
