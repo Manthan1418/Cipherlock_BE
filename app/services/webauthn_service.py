@@ -17,7 +17,6 @@ from webauthn.helpers.structs import (
     ResidentKeyRequirement,
     PublicKeyCredentialDescriptor,
     AttestationConveyancePreference,
-    AuthenticatorAttachment,
     AuthenticatorTransport,
 )
 from flask import current_app
@@ -61,10 +60,10 @@ class WebAuthnService:
             user_id=user_id.encode('utf-8'),
             user_name=user_email,
             user_display_name=user_email,
+            timeout=180000,
             attestation=AttestationConveyancePreference.NONE,
             authenticator_selection=AuthenticatorSelectionCriteria(
                 user_verification=UserVerificationRequirement.PREFERRED,
-                authenticator_attachment=AuthenticatorAttachment.PLATFORM, 
                 resident_key=ResidentKeyRequirement.REQUIRED,
             ),
         )
@@ -146,6 +145,7 @@ class WebAuthnService:
             rp_id=config['rp_id'],
             allow_credentials=allow_credentials or [],
             user_verification=UserVerificationRequirement.PREFERRED,
+            timeout=180000,
         )
         
         session_id = secrets.token_urlsafe(32)

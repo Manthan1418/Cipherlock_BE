@@ -2,8 +2,10 @@ from flask import request, jsonify, current_app
 import pyotp
 import requests
 import secrets
+from datetime import datetime, timezone
 from app.extensions.firebase import get_firestore_base_url
 from app.extensions.twofactor_session import create_twofactor_session
+from app.extensions.firestore import FirestoreClient
 
 _http = requests.Session()
 REQUEST_TIMEOUT = 10
@@ -246,6 +248,7 @@ def webauthn_login_verify():
 
         result = WebAuthnService.verify_login_response(session_id, data_for_service, user_id=uid)
         actual_uid = result.get('uid')
+        credential_id = result.get('credential_id')
         
         if not actual_uid:
              return jsonify({'error': 'Could not determine user ID from credentials'}), 400
@@ -253,14 +256,48 @@ def webauthn_login_verify():
         from firebase_admin import auth
         custom_token = auth.create_custom_token(actual_uid)
         twofactor_session = create_twofactor_session(actual_uid)
+
+        wrapped_vault_key = None
+        if credential_id:
+            wrapped_vault_key = FirestoreClient.get_doc(f"users/{actual_uid}/webauthn_wrapped_keys", credential_id)
         
         return jsonify({
             'verified': True,
             'token': custom_token.decode('utf-8') if isinstance(custom_token, bytes) else custom_token,
             'sign_count': result.get('new_sign_count'),
             'twoFactorSession': twofactor_session,
+            'credentialId': credential_id,
+            'wrappedVaultKey': wrapped_vault_key,
         }), 200
         
     except Exception as e:
         current_app.logger.exception(f"WebAuthn Login Error: {str(e)}")
         return jsonify({'error': 'WebAuthn login verification failed'}), 500
+
+
+def save_webauthn_wrapped_key():
+    uid = request.uid
+    data = request.get_json(silent=True) or {}
+
+    credential_id = data.get('credentialId')
+    wrapped_key = data.get('wrappedKey')
+    iv = data.get('iv')
+
+    if not credential_id or not wrapped_key or not iv:
+        return jsonify({'error': 'credentialId, wrappedKey, and iv are required'}), 400
+
+    saved = FirestoreClient.update_doc(
+        f"users/{uid}/webauthn_wrapped_keys",
+        credential_id,
+        {
+            'credentialId': credential_id,
+            'wrappedKey': wrapped_key,
+            'iv': iv,
+            'updatedAt': str(datetime.now(timezone.utc)),
+        }
+    )
+
+    if not saved:
+        return jsonify({'error': 'Failed to save wrapped key'}), 500
+
+    return jsonify({'saved': True}), 200

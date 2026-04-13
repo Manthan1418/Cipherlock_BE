@@ -1,6 +1,6 @@
 from flask import Blueprint
 from app.middleware.auth_middleware import verify_firebase_token
-from app.controllers.auth_controller import generate_2fa_secret, enable_2fa, disable_2fa, verify_2fa_login, get_2fa_status, get_or_create_kdf_salt
+from app.controllers.auth_controller import generate_2fa_secret, enable_2fa, disable_2fa, verify_2fa_login, get_2fa_status, get_or_create_kdf_salt, save_webauthn_wrapped_key
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -55,4 +55,14 @@ def webauthn_log_options():
 def webauthn_log_verify():
     from app.controllers.auth_controller import webauthn_login_verify
     return webauthn_login_verify()
+
+@auth_bp.route('/webauthn/key-wrap/save', methods=['POST'])
+@verify_firebase_token
+def webauthn_key_wrap_save():
+    return save_webauthn_wrapped_key()
+
+@auth_bp.route('/webauthn/key-wrap/save', methods=['POST'])
+@verify_firebase_token
+def webauthn_key_wrap_save():
+    return save_webauthn_wrapped_key()
 

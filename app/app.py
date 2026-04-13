@@ -57,6 +57,10 @@ def create_app(config_class=Config):
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(biometrics_bp, url_prefix='/api/biometrics')
 
+    app.register_blueprint(vault_bp, url_prefix='/api/v1/vault', name='vault_v1')
+    app.register_blueprint(auth_bp, url_prefix='/api/v1/auth', name='auth_v1')
+    app.register_blueprint(biometrics_bp, url_prefix='/api/v1/biometrics', name='biometrics_v1')
+
     @app.route('/health')
     @app.route('/api/health')
     def health_check():
@@ -68,4 +72,5 @@ app = create_app()
 
 if __name__ == '__main__':
     debug_enabled = os.environ.get('FLASK_DEBUG', '').lower() in ('1', 'true', 'yes')
-    app.run(host='0.0.0.0', port=5000, debug=debug_enabled)
+    port = int(os.environ.get('PORT', 8080))
+    app.run(host='0.0.0.0', port=port, debug=debug_enabled)
