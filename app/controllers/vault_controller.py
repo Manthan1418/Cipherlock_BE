@@ -2,6 +2,7 @@ from flask import request, jsonify, current_app
 import requests
 from datetime import datetime
 from app.extensions.firebase import get_firestore_base_url
+from app.controllers.subscription_controller import check_subscription_limit
 
 _http = requests.Session()
 REQUEST_TIMEOUT = 10
@@ -70,6 +71,10 @@ def add_password():
         _validate_vault_payload(data)
     except ValueError as err:
         return jsonify({'error': str(err)}), 400
+
+    limit = check_subscription_limit(uid)
+    if not limit['allowed']:
+        return jsonify({'error': f'Password limit reached ({limit["current"]}/{limit["max"]}). Upgrade your plan to add more passwords.'}), 403
 
     url = f"{get_firestore_base_url()}/users/{uid}/vault"
     

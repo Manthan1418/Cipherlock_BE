@@ -62,3 +62,42 @@ class Config:
         ]
     else:
         WEBAUTHN_ALLOWED_ORIGINS = [ORIGIN]
+
+    # Subscription Plans
+    PLANS = {
+        'free': {
+            'name': 'Free',
+            'max_passwords': 5,
+            'price': 0,
+            'price_label': 'Free',
+            'features': ['Up to 5 passwords', 'Basic AES-256 encryption'],
+        },
+        'basic': {
+            'name': 'Basic',
+            'max_passwords': 50,
+            'price': 99,
+            'price_label': '₹99/month',
+            'features': ['Up to 50 passwords', 'AES-256 encryption', '2FA support'],
+        },
+        'pro': {
+            'name': 'Pro',
+            'max_passwords': 200,
+            'price': 199,
+            'price_label': '₹199/month',
+            'features': ['Up to 200 passwords', 'AES-256 encryption', '2FA support', 'Passkey support', 'Priority support'],
+        },
+        'enterprise': {
+            'name': 'Enterprise',
+            'max_passwords': -1,
+            'price': 499,
+            'price_label': '₹499/month',
+            'features': ['Unlimited passwords', 'AES-256 encryption', '2FA support', 'Passkey support', 'Priority support', 'Admin dashboard'],
+        },
+    }
+
+    # Admin credentials (username/password for admin panel login)
+    ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME', 'admin')
+    ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin123')
+
+    # Admin emails (comma-separated in env var, alternative to username/password)
+    ADMIN_EMAILS = [e.strip() for e in os.environ.get('ADMIN_EMAILS', '').split(',') if e.strip()]

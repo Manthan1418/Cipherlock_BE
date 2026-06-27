@@ -161,18 +161,33 @@ def get_or_create_kdf_salt():
     token = request.token
 
     response = get_user_doc(uid, token)
-    if response.status_code == 200:
+    user_exists = response.status_code == 200
+    
+    if user_exists:
         user_data = response.json()
         fields = user_data.get('fields', {})
         existing_salt = fields.get('kdfSalt', {}).get('stringValue')
         if existing_salt:
+            email = getattr(request, 'email', None)
+            if email:
+                field_data = {
+                    'kdfSalt': {'stringValue': existing_salt},
+                    'email': {'stringValue': email},
+                }
+                update_user_doc(uid, token, field_data, field_paths=['kdfSalt', 'email'])
             return jsonify({'salt': existing_salt}), 200
 
     salt = secrets.token_hex(16)
+    email = getattr(request, 'email', None)
     fields = {
-        'kdfSalt': {'stringValue': salt}
+        'kdfSalt': {'stringValue': salt},
     }
-    update_response = update_user_doc(uid, token, fields, field_paths=['kdfSalt'])
+    path = ['kdfSalt']
+    if email:
+        fields['email'] = {'stringValue': email}
+        path.append('email')
+    
+    update_response = update_user_doc(uid, token, fields, field_paths=path)
 
     if update_response.status_code != 200:
         current_app.logger.error(f"Failed to persist KDF salt: {update_response.status_code} {update_response.text}")

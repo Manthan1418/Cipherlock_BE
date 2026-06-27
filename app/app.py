@@ -9,6 +9,8 @@ from app.extensions.firebase import init_firebase
 from app.routes.vault_routes import vault_bp
 from app.routes.auth_routes import auth_bp
 from app.routes.biometrics_routes import biometrics_bp
+from app.routes.admin_routes import admin_bp
+from app.routes.subscription_routes import subscription_bp
 
 def create_app(config_class=Config):
     app = Flask(__name__)
@@ -56,10 +58,14 @@ def create_app(config_class=Config):
     app.register_blueprint(vault_bp, url_prefix='/api/vault')
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(biometrics_bp, url_prefix='/api/biometrics')
+    app.register_blueprint(admin_bp, url_prefix='/api/admin')
+    app.register_blueprint(subscription_bp, url_prefix='/api/subscription')
 
     app.register_blueprint(vault_bp, url_prefix='/api/v1/vault', name='vault_v1')
     app.register_blueprint(auth_bp, url_prefix='/api/v1/auth', name='auth_v1')
     app.register_blueprint(biometrics_bp, url_prefix='/api/v1/biometrics', name='biometrics_v1')
+    app.register_blueprint(admin_bp, url_prefix='/api/v1/admin', name='admin_v1')
+    app.register_blueprint(subscription_bp, url_prefix='/api/v1/subscription', name='subscription_v1')
 
     @app.route('/health')
     @app.route('/api/health')
